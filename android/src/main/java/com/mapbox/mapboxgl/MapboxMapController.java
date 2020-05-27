@@ -14,6 +14,7 @@ import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.location.Location;
@@ -23,12 +24,14 @@ import androidx.annotation.NonNull;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
+import android.view.animation.BounceInterpolator;
 
 import androidx.annotation.NonNull;
 
 import com.mapbox.android.core.location.LocationEngine;
 import com.mapbox.android.core.location.LocationEngineCallback;
 import com.mapbox.android.core.location.LocationEngineProvider;
+import com.mapbox.android.core.location.LocationEngineRequest;
 import com.mapbox.android.core.location.LocationEngineResult;
 import com.mapbox.android.telemetry.TelemetryEnabler;
 import com.mapbox.geojson.Feature;
@@ -342,14 +345,37 @@ final class MapboxMapController
   @SuppressWarnings( {"MissingPermission"})
   private void enableLocationComponent(@NonNull Style style) {
     if (hasLocationPermission()) {
-      locationEngine = LocationEngineProvider.getBestLocationEngine(context);
+      int primaryColor = Color.parseColor("#ffffff");
+      int secondaryColor = Color.parseColor("#d92c02");
       LocationComponentOptions locationComponentOptions = LocationComponentOptions.builder(context)
+        .enableStaleState(false)
+        .elevation(25)
+
+        .pulseEnabled(true)
+        .pulseColor(secondaryColor)
+        .pulseAlpha(.6f)
+        .accuracyColor(primaryColor)
+        .backgroundTintColor(primaryColor)
+        .foregroundTintColor(secondaryColor)
         .trackingGesturesManagement(true)
         .build();
+
+      LocationEngineRequest locationEngineRequest = new LocationEngineRequest.Builder(10000)
+              .setDisplacement(50)
+              .setFastestInterval(5000)
+              .setPriority(LocationEngineRequest.PRIORITY_HIGH_ACCURACY)
+              .build();
+
+      LocationComponentActivationOptions locationComponentActivationOptions = LocationComponentActivationOptions
+              .builder(context, style)
+              .locationComponentOptions(locationComponentOptions)
+              .locationEngineRequest(locationEngineRequest)
+              .build();
+
       locationComponent = mapboxMap.getLocationComponent();
-      locationComponent.activateLocationComponent(context, style, locationComponentOptions);
+      locationComponent.activateLocationComponent(locationComponentActivationOptions);
       locationComponent.setLocationComponentEnabled(true);
-      // locationComponent.setRenderMode(RenderMode.COMPASS); // remove or keep default?
+      locationEngine = LocationEngineProvider.getBestLocationEngine(context);
       locationComponent.setLocationEngine(locationEngine);
       locationComponent.setMaxAnimationFps(30);
       updateMyLocationTrackingMode();
@@ -734,7 +760,9 @@ final class MapboxMapController
 
   @Override
   public void onCameraIdle() {
-    methodChannel.invokeMethod("camera#onIdle", Collections.singletonMap("map", id));
+    final Map<String, Object> arguments = new HashMap<>(2);
+    arguments.put("position", Convert.toJson(mapboxMap.getCameraPosition()));
+    methodChannel.invokeMethod("camera#onIdle", arguments);
   }
 
   @Override

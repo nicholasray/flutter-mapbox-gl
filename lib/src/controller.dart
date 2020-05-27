@@ -12,7 +12,7 @@ typedef void OnStyleLoadedCallback();
 typedef void OnCameraTrackingDismissedCallback();
 typedef void OnCameraTrackingChangedCallback(MyLocationTrackingMode mode);
 
-typedef void OnCameraIdleCallback();
+typedef void OnCameraIdleCallback(CameraPosition cameraPosition);
 
 typedef void OnMapIdleCallback();
 
@@ -81,7 +81,7 @@ class MapboxMapController extends ChangeNotifier {
       notifyListeners();
     });
 
-    MapboxGlPlatform.instance.onCameraIdlePlatform.add((_) {
+    MapboxGlPlatform.instance.onCameraIdlePlatform.add((cameraPosition) {
       _isCameraMoving = false;
       notifyListeners();
     });
