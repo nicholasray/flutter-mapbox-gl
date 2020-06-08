@@ -14,6 +14,7 @@ import android.content.res.AssetFileDescriptor;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
 import android.graphics.PointF;
 import android.graphics.RectF;
 import android.location.Location;
@@ -33,6 +34,7 @@ import com.google.gson.JsonElement;
 import com.mapbox.android.core.location.LocationEngine;
 import com.mapbox.android.core.location.LocationEngineCallback;
 import com.mapbox.android.core.location.LocationEngineProvider;
+import com.mapbox.android.core.location.LocationEngineRequest;
 import com.mapbox.android.core.location.LocationEngineResult;
 import com.mapbox.android.telemetry.TelemetryEnabler;
 import com.mapbox.geojson.Feature;
@@ -53,7 +55,6 @@ import com.mapbox.mapboxsdk.location.modes.RenderMode;
 import com.mapbox.mapboxsdk.maps.MapView;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.mapboxsdk.maps.MapboxMapOptions;
-import com.mapbox.mapboxsdk.maps.Projection;
 import com.mapbox.mapboxsdk.offline.OfflineManager;
 import com.mapbox.mapboxsdk.maps.OnMapReadyCallback;
 import com.mapbox.mapboxsdk.maps.Style;
@@ -67,7 +68,6 @@ import com.mapbox.mapboxsdk.plugins.annotation.Symbol;
 import com.mapbox.mapboxsdk.plugins.annotation.SymbolManager;
 import com.mapbox.mapboxsdk.plugins.annotation.Line;
 import com.mapbox.mapboxsdk.plugins.annotation.LineManager;
-import com.mapbox.geojson.Feature;
 import com.mapbox.mapboxsdk.plugins.annotation.SymbolOptions;
 import com.mapbox.mapboxsdk.style.expressions.Expression;
 import io.flutter.plugin.common.MethodCall;
@@ -375,21 +375,41 @@ final class MapboxMapController
   @SuppressWarnings( {"MissingPermission"})
   private void enableLocationComponent(@NonNull Style style) {
     if (hasLocationPermission()) {
-      locationEngine = LocationEngineProvider.getBestLocationEngine(context);
+      int primaryColor = Color.parseColor("#ffffff");
+      int secondaryColor = Color.parseColor("#d92c02");
       LocationComponentOptions locationComponentOptions = LocationComponentOptions.builder(context)
+        .foregroundStaleTintColor(Color.parseColor("#B0BEC5"))
+        .elevation(25)
+        .pulseEnabled(true)
+        .pulseColor(secondaryColor)
+        .pulseAlpha(.6f)
+        .accuracyColor(primaryColor)
+        .backgroundTintColor(primaryColor)
+        .foregroundTintColor(secondaryColor)
         .trackingGesturesManagement(true)
         .build();
+
+      LocationEngineRequest locationEngineRequest = new LocationEngineRequest.Builder(750)
+              .setFastestInterval(750)
+              .setPriority(LocationEngineRequest.PRIORITY_HIGH_ACCURACY)
+              .build();
+
+      LocationComponentActivationOptions locationComponentActivationOptions = LocationComponentActivationOptions
+              .builder(context, style)
+              .useDefaultLocationEngine(true)
+              .locationComponentOptions(locationComponentOptions)
+              .locationEngineRequest(locationEngineRequest)
+              .build();
+
       locationComponent = mapboxMap.getLocationComponent();
-      locationComponent.activateLocationComponent(context, style, locationComponentOptions);
+      locationComponent.activateLocationComponent(locationComponentActivationOptions);
       locationComponent.setLocationComponentEnabled(true);
-      // locationComponent.setRenderMode(RenderMode.COMPASS); // remove or keep default?
-      locationComponent.setLocationEngine(locationEngine);
-      locationComponent.setMaxAnimationFps(30);
       updateMyLocationTrackingMode();
       setMyLocationTrackingMode(this.myLocationTrackingMode);
       updateMyLocationRenderMode();
       setMyLocationRenderMode(this.myLocationRenderMode);
       locationComponent.addOnCameraTrackingChangedListener(this);
+      locationEngine = LocationEngineProvider.getBestLocationEngine(context);
     } else {
       Log.e(TAG, "missing location permissions");
     }
@@ -902,7 +922,9 @@ final class MapboxMapController
 
   @Override
   public void onCameraIdle() {
-    methodChannel.invokeMethod("camera#onIdle", Collections.singletonMap("map", id));
+    final Map<String, Object> arguments = new HashMap<>(2);
+    arguments.put("position", Convert.toJson(mapboxMap.getCameraPosition()));
+    methodChannel.invokeMethod("camera#onIdle", arguments);
   }
 
   @Override
